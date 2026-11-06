@@ -227,6 +227,17 @@ export const GARMENTS: GarmentDefinition[] = [
     defaults: { length: 0.98, ease: 0.03, flare: 0.18, waistband: true, drawstring: true }
   },
   {
+    id: 'culottes',
+    name: 'Culottes',
+    category: 'bottom',
+    icon: 'pants',
+    pieces: [{ kind: 'legTubes' }],
+    supports: lowerCaps,
+    // Cropped, skirt-like legs: a mid-calf hem with generous flare and pleat volume.
+    defaults: { length: 0.35, ease: 0.04, flare: 0.18, pleats: true, pleatStyle: 'knife', waistband: true },
+    defaultFabric: 'crepe'
+  },
+  {
     id: 'palazzo',
     name: 'Palazzo pants',
     category: 'bottom',
