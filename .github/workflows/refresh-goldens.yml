@@ -1,0 +1,33 @@
+name: Refresh golden captures
+
+on:
+  pull_request:
+    paths: ['.github/workflows/refresh-goldens.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'feat/534-culottes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y xvfb libnss3 libgbm1
+      - run: npm ci
+      - run: npm run build
+      - run: xvfb-run -a --server-args="-screen 0 1280x900x24" npx electron scripts/golden.cjs --update --no-sandbox
+      - name: Save captures for review
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/golden/*.png
+          git diff --cached --quiet || git commit -m 'Refresh Linux visual baselines for review'
+          git push origin HEAD:${{ github.head_ref }}
