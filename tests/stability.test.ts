@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildMannequin } from '../src/renderer/avatar/Mannequin'
 import { DEFAULT_PARAMS, type GarmentType } from '../src/renderer/garment/templates'
-import { getGarment, GARMENT_IDS } from '../src/renderer/garments/registry'
+import { getGarment } from '../src/renderer/garments/registry'
 import { garmentTubeSpecs, garmentSleeveSpecs } from '../src/renderer/garments/factory'
 import { buildTubeGarment, buildAxisTube } from '../src/renderer/cloth/Garment'
 import { XPBDSolver } from '../src/renderer/cloth/XPBDSolver'
@@ -49,22 +49,18 @@ describe('cloth stability (never flies away / explodes)', () => {
 
   // The long / leg-wrapping garments are the ones that used to destabilise; the snood
   // is a short head/neck tube (a new piece kind) — confirm it drapes bounded too.
-  it('the risky long/wide garments stay bounded on the mesh collider', () => {
-    for (const id of ['maxi-skirt', 'wide-leg', 'jumpsuit', 'snood', 'beanie'] as GarmentType[]) {
-      if (!GARMENT_IDS.includes(id)) continue
-      const mx = drapeMaxAbs(id)
-      expect(Number.isFinite(mx), `${id} went non-finite`).toBe(true)
-      expect(mx, `${id} diverged to ${mx}`).toBeLessThan(3)
-    }
+  // Each simulation gets its own timeout; a shared budget depends on runner speed.
+  it.each(['maxi-skirt', 'wide-leg', 'culottes', 'jumpsuit', 'snood', 'beanie'])('%s stays bounded on the mesh collider', (id) => {
+    const mx = drapeMaxAbs(id)
+    expect(Number.isFinite(mx), `${id} went non-finite`).toBe(true)
+    expect(mx, `${id} diverged to ${mx}`).toBeLessThan(3)
   }, 20000)
 
   // Every sleeve shape must drape bounded — the puff used to build a ~4× oversized cap ring
   // (a fixed 0.138 m) that self-intersected and exploded into torn balloons.
-  it('every sleeve shape drapes finite + bounded (no exploding puff)', () => {
-    for (const shape of SLEEVE_SHAPES) {
-      const mx = drapeSleeveMaxAbs(shape)
-      expect(Number.isFinite(mx), `${shape} sleeve went non-finite`).toBe(true)
-      expect(mx, `${shape} sleeve diverged to ${mx}`).toBeLessThan(3)
-    }
+  it.each(SLEEVE_SHAPES)('%s sleeve drapes finite + bounded (no exploding puff)', (shape) => {
+    const mx = drapeSleeveMaxAbs(shape)
+    expect(Number.isFinite(mx), `${shape} sleeve went non-finite`).toBe(true)
+    expect(mx, `${shape} sleeve diverged to ${mx}`).toBeLessThan(3)
   }, 20000)
 })
