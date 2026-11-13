@@ -213,6 +213,33 @@ describe('catalog additions — tapered bottoms + new silhouettes', () => {
     expect(ankleR('joggers')).toBeLessThan(ankleR('wide-leg'))
   })
 
+  it('culottes have two wide, pleated legs cropped between the knee and ankle', () => {
+    expect(GARMENT_IDS.filter((id) => id === 'culottes')).toHaveLength(1)
+    const culottes = getGarment('culottes')
+    expect(culottes.category).toBe('bottom')
+    const legs = specs('culottes', withDefaults('culottes'))
+    const trousers = specs('pants', withDefaults('pants'))[0]
+    const palazzo = specs('palazzo', withDefaults('palazzo'))[0]
+    expect(legs).toHaveLength(2)
+    expect(legs[0].centerX).toBe(-legs[1].centerX!)
+    for (const leg of legs) {
+      expect(leg.bottomY).toBeLessThan(MEASUREMENTS.kneeY)
+      expect(leg.bottomY).toBeGreaterThan(MEASUREMENTS.ankleY)
+      expect(leg.bottomY).toBeGreaterThan(trousers.bottomY)
+      expect(leg.bottomY).toBeGreaterThan(palazzo.bottomY)
+      expect(leg.radiusTop).toBeGreaterThan(trousers.radiusTop)
+      expect(leg.radiusBottom).toBeGreaterThan(leg.radiusTop)
+      expect(leg.pleat).toBe('knife')
+    }
+  })
+
+  it('culottes length and flare controls change the hem and leg width', () => {
+    const base = withDefaults('culottes')
+    const leg = specs('culottes', base)[0]
+    expect(specs('culottes', { ...base, length: 0.8 })[0].bottomY).toBeLessThan(leg.bottomY)
+    expect(specs('culottes', { ...base, flare: 0 })[0].radiusBottom).toBeLessThan(leg.radiusBottom)
+  })
+
   it('palazzo pants are wider than wide-leg from the hip to the hem', () => {
     const palazzo = getGarment('palazzo')
     expect(palazzo.category).toBe('bottom')

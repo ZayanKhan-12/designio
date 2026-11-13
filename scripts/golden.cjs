@@ -128,21 +128,23 @@ const newWin = () =>
     webPreferences: { preload: PRELOAD, sandbox: false, backgroundThrottling: false }
   })
 
-// One window is reused across every render (each loadFile reinitialises the app
-// from scratch): under SwiftShader the first load pays minutes of shader
-// compilation, and reuse keeps that cache warm for the renders after it.
-async function render(win, name, search) {
+// Each capture gets a fresh renderer. Reusing a window across about:blank and
+// file navigations can reject the second load with ERR_FAILED on Linux.
+// The default session still shares Chromium's shader cache across windows.
+async function render(name, search) {
   const t0 = Date.now()
-  // Unload the previous look FIRST (its on-close autosave writes localStorage as
-  // it unloads), THEN wipe storage — else the stale autosave survives the clear
-  // and the next load shows a "Recover unsaved work?" banner in the capture.
-  await win.loadURL('about:blank')
-  await win.webContents.session.clearStorageData({ storages: ['localstorage'] })
-  await win.loadFile(INDEX, { search: `${search}&freezeAt=${FREEZE_AT_S}&catchUp=${CATCH_UP_STEPS}` })
-  await settle(win.webContents) // cloth falls, drapes, freezes at the mark
-  const image = await win.webContents.capturePage()
-  console.log(`rendered ${name} in ${Math.round((Date.now() - t0) / 1000)}s`)
-  return image
+  const win = newWin()
+  try {
+    // The previous window has been destroyed, so it cannot autosave after this.
+    await win.webContents.session.clearStorageData({ storages: ['localstorage'] })
+    await win.loadFile(INDEX, { search: `${search}&freezeAt=${FREEZE_AT_S}&catchUp=${CATCH_UP_STEPS}` })
+    await settle(win.webContents)
+    const image = await win.webContents.capturePage()
+    console.log(`rendered ${name} in ${Math.round((Date.now() - t0) / 1000)}s`)
+    return image
+  } finally {
+    win.destroy()
+  }
 }
 
 let done = false // the render window churns on errors — don't quit before the run finishes
@@ -154,9 +156,8 @@ app
     if (MODE === 'update') fs.mkdirSync(GOLDEN_DIR, { recursive: true })
     let failures = 0
     let missing = 0
-    let win = newWin()
     const runLook = async (look) => {
-      const img = await render(win, look.name, look.search)
+      const img = await render(look.name, look.search)
       fs.writeFileSync(path.join(OUT_DIR, `${look.name}.png`), img.toPNG())
       if (MODE === 'update') {
         fs.writeFileSync(path.join(GOLDEN_DIR, `${look.name}.png`), img.toPNG())
@@ -164,7 +165,7 @@ app
         return
       }
       // determinism: a second, fresh render of the same build must match
-      const repeat = await render(win, `${look.name} again`, look.search)
+      const repeat = await render(`${look.name} again`, look.search)
       const rs = diffStats(pixels(img), pixels(repeat), { threshold: 4 })
       console.log(formatDiff(`${look.name} [repeat]`, rs))
       if (!rs.comparable || rs.pct > REPEAT_MAX_PCT) {
@@ -195,8 +196,6 @@ app
           await runLook(look)
           break
         } catch (err) {
-          win.destroy() // the shared window may be wedged — fresh one either way
-          win = newWin()
           if (attempt >= 1) {
             console.error(`FAIL ${look.name}: render error —`, err)
             failures++
@@ -206,7 +205,6 @@ app
         }
       }
     }
-    win.destroy()
     if (missing) console.log(`${missing} golden(s) missing — bootstrap renders uploaded, not failing`)
     console.log(failures ? `GOLDEN CHECK FAILED (${failures})` : 'GOLDEN CHECK OK')
     done = true
